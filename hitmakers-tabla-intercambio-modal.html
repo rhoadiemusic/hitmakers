@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Intercambio Modal PRO</title>
+    <!-- Importamos Tone.js vía CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #1e1e24;
+            color: #f4f4f9;
+        }
+        .header-container {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        select {
+            padding: 10px 15px;
+            font-size: 18px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background-color: #2b2b36;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .status-badge {
+            padding: 8px 12px;
+            border-radius: 20px;
+            background-color: #e74c3c;
+            color: white;
+            font-size: 0.9em;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .status-badge.active {
+            background-color: #2ecc71;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #2b2b36;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            border: 1px solid #444;
+            padding: 15px;
+            text-align: center;
+            transition: all 0.1s ease;
+        }
+        th {
+            background-color: #0f0f13;
+            color: #aaa;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .mode-name {
+            font-weight: bold;
+            background-color: #1a1a20;
+            text-align: left;
+            color: #ddd;
+        }
+        .chord-cell {
+            cursor: pointer;
+            user-select: none;
+        }
+        .chord-cell:hover {
+            background-color: #3b3b4a;
+            transform: scale(1.02);
+            box-shadow: inset 0 0 10px rgba(255,255,255,0.05);
+        }
+        .chord-cell:active {
+            background-color: #555566;
+            transform: scale(0.98);
+        }
+        .major { color: #ff7675; font-weight: bold; font-size: 0.9em; }
+        .minor { color: #74b9ff; font-weight: bold; font-size: 0.9em; }
+        .dim { color: #a29bfe; font-style: italic; font-size: 0.9em; }
+        .chord-display {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-top: 5px;
+            color: #fff;
+        }
+        .instructions {
+            margin-top: 20px;
+            color: #aaa;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-container">
+    <h2>Intercambio Modal PRO</h2>
+    <select id="rootSelector" onchange="updateTable()">
+        <!-- Generado por JS -->
+    </select>
+    <div id="audioStatus" class="status-badge">Audio Inactivo (Haz clic en un acorde)</div>
+</div>
+
+<table id="modalTable">
+    <thead>
+        <tr>
+            <th>Modo / Grado</th>
+            <th>I</th>
+            <th>II</th>
+            <th>III</th>
+            <th>IV</th>
+            <th>V</th>
+            <th>VI</th>
+            <th>VII</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Generado por JS -->
+    </tbody>
+</table>
+
+<div class="instructions">
+    * Haz clic en cualquier celda para escuchar el acorde. Ortografía enarmónica corregida para consistencia teórica.
+</div>
+
+<script>
+    // Arreglo solo para el motor de audio de Tone.js (simplificado cromáticamente)
+    const toneNotes = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+    // Objeto complejo para la UI: Define la raíz visual y su índice cromático
+    const rootOptions = [
+        { label: 'C', value: 0, letter: 'C' },
+        { label: 'Db', value: 1, letter: 'D' },
+        { label: 'D', value: 2, letter: 'D' },
+        { label: 'Eb', value: 3, letter: 'E' },
+        { label: 'E', value: 4, letter: 'E' },
+        { label: 'F', value: 5, letter: 'F' },
+        { label: 'F#', value: 6, letter: 'F' },
+        { label: 'G', value: 7, letter: 'G' },
+        { label: 'Ab', value: 8, letter: 'A' },
+        { label: 'A', value: 9, letter: 'A' },
+        { label: 'Bb', value: 10, letter: 'B' },
+        { label: 'B', value: 11, letter: 'B' }
+    ];
+
+    const modes = [
+        { name: 'Jónico', intervals: [0, 2, 4, 5, 7, 9, 11], qualities: ['M', 'm', 'm', 'M', 'M', 'm', 'dim'] },
+        { name: 'Dórico', intervals: [0, 2, 3, 5, 7, 9, 10], qualities: ['m', 'm', 'M', 'M', 'm', 'dim', 'M'] },
+        { name: 'Frigio', intervals: [0, 1, 3, 5, 7, 8, 10], qualities: ['m', 'M', 'M', 'm', 'dim', 'M', 'm'] },
+        { name: 'Lidio', intervals: [0, 2, 4, 6, 7, 9, 11], qualities: ['M', 'M', 'm', 'dim', 'M', 'm', 'm'] },
+        { name: 'Mixolidio', intervals: [0, 2, 4, 5, 7, 9, 10], qualities: ['M', 'm', 'dim', 'M', 'm', 'm', 'M'] },
+        { name: 'Eólico', intervals: [0, 2, 3, 5, 7, 8, 10], qualities: ['m', 'dim', 'M', 'm', 'm', 'M', 'M'] },
+        { name: 'Locrio', intervals: [0, 1, 3, 5, 6, 8, 10], qualities: ['dim', 'M', 'm', 'm', 'M', 'M', 'M'] }
+    ];
+
+    let synth;
+    let audioInitialized = false;
+
+    async function initAudio() {
+        if (!audioInitialized) {
+            await Tone.start();
+            synth = new Tone.PolySynth(Tone.Synth, {
+                envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 1.2 }
+            }).toDestination();
+            Tone.Destination.volume.value = -8; 
+            audioInitialized = true;
+            const statusBadge = document.getElementById('audioStatus');
+            statusBadge.innerText = "🔊 Audio Activo";
+            statusBadge.classList.add('active');
+        }
+    }
+
+    function playChord(rootSemitones, quality) {
+        if (!synth) return;
+        const baseOctave = 4;
+        let chordIntervals = [];
+
+        if (quality === 'M') chordIntervals = [0, 4, 7];
+        else if (quality === 'm') chordIntervals = [0, 3, 7];
+        else if (quality === 'dim') chordIntervals = [0, 3, 6];
+
+        const notesToPlay = chordIntervals.map(interval => {
+            const absoluteSemitones = rootSemitones + interval;
+            const noteIndex = absoluteSemitones % 12;
+            const octaveOffset = Math.floor(absoluteSemitones / 12); 
+            // Tone.js usa el arreglo simplificado porque solo le importa la nota real
+            return toneNotes[noteIndex] + (baseOctave + octaveOffset);
+        });
+
+        synth.triggerAttackRelease(notesToPlay, "4n");
+    }
+
+    // MOTOR DE ORTOGRAFÍA DIATÓNICA
+    function getSpelledNote(rootLetter, targetValue, degreeIndex) {
+        const alphabet = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        const letterValues = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11 };
+
+        // Calculamos qué letra obligatoria debe tener este grado
+        let rootLetterIndex = alphabet.indexOf(rootLetter);
+        let targetLetterIndex = (rootLetterIndex + degreeIndex) % 7;
+        let targetLetter = alphabet[targetLetterIndex];
+
+        let baseTargetValue = letterValues[targetLetter];
+
+        // Calculamos la diferencia en semitonos para saber si es natural, b, #, bb o x
+        let diff = (targetValue - baseTargetValue + 12) % 12;
+        if (diff > 6) diff -= 12;
+
+        let accidentalStr = '';
+        if (diff === 1) accidentalStr = '#';
+        else if (diff === 2) accidentalStr = 'x'; // Doble sostenido
+        else if (diff === -1) accidentalStr = 'b';
+        else if (diff === -2) accidentalStr = 'bb'; // Doble bemol
+
+        return targetLetter + accidentalStr;
+    }
+
+    function init() {
+        const selector = document.getElementById('rootSelector');
+        rootOptions.forEach((optionData, index) => {
+            let option = document.createElement('option');
+            option.value = index; // Guardamos el índice para referenciar todo el objeto
+            option.text = "Tono Base: " + optionData.label;
+            selector.appendChild(option);
+        });
+        selector.value = 0; 
+        updateTable();
+    }
+
+    function getQualityClass(q) {
+        if (q === 'M') return 'major';
+        if (q === 'm') return 'minor';
+        return 'dim';
+    }
+
+    function getQualitySuffix(q) {
+        if (q === 'M') return '';
+        if (q === 'm') return 'm';
+        return 'dim';
+    }
+
+    function updateTable() {
+        const selectedIndex = document.getElementById('rootSelector').value;
+        const rootData = rootOptions[selectedIndex];
+        
+        const rootIndex = rootData.value;
+        const rootLetter = rootData.letter;
+
+        const tbody = document.querySelector('#modalTable tbody');
+        tbody.innerHTML = '';
+
+        modes.forEach(mode => {
+            let tr = document.createElement('tr');
+            
+            let tdName = document.createElement('td');
+            tdName.className = 'mode-name';
+            tdName.textContent = mode.name;
+            tr.appendChild(tdName);
+
+            mode.intervals.forEach((interval, i) => {
+                // Cálculo para el motor de audio
+                let absoluteSemitones = rootIndex + interval;
+                let chromaticTargetValue = absoluteSemitones % 12; 
+                
+                // Cálculo visual usando el motor ortográfico
+                let visualNoteName = getSpelledNote(rootLetter, chromaticTargetValue, i);
+                
+                let quality = mode.qualities[i];
+                let suffix = getQualitySuffix(quality);
+                let qClass = getQualityClass(quality);
+
+                let td = document.createElement('td');
+                td.className = 'chord-cell';
+                td.innerHTML = `
+                    <span class="${qClass}">${quality}</span>
+                    <div class="chord-display">${visualNoteName}${suffix}</div>
+                `;
+                
+                td.onclick = async () => {
+                    await initAudio();
+                    playChord(absoluteSemitones, quality);
+                };
+
+                tr.appendChild(td);
+            });
+            
+            tbody.appendChild(tr);
+        });
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
